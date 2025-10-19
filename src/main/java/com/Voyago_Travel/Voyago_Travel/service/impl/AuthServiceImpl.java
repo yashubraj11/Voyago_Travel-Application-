@@ -2,9 +2,9 @@ package com.Voyago_Travel.Voyago_Travel.service.impl;
 
 
 import java.time.LocalDateTime;
-
+import java.util.HashMap;
 import java.util.InputMismatchException;
-
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeoutException;
 
@@ -12,7 +12,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.Voyago_Travel.Voyago_Travel.dao.UserDao;
+import com.Voyago_Travel.Voyago_Travel.dto.EmailDto;
+import com.Voyago_Travel.Voyago_Travel.dto.LoginDto;
 import com.Voyago_Travel.Voyago_Travel.dto.OtpDto;
+import com.Voyago_Travel.Voyago_Travel.dto.PasswordDto;
 import com.Voyago_Travel.Voyago_Travel.dto.ResponseDto;
 import com.Voyago_Travel.Voyago_Travel.dto.UserDto;
 import com.Voyago_Travel.Voyago_Travel.entity.Role;
@@ -75,6 +78,55 @@ public class AuthServiceImpl implements AuthService {
 		}else {
 			throw new TimeoutException("otp expired, resend otp and try again");
 		}
+	}
+
+	@Override
+	public ResponseDto resendOtp(EmailDto emailDto) {
+		User user = userDao.findByEmail(emailDto.getEmail());
+		int otp = new Random().nextInt(100000,1000000);
+		emailSender.sendOtp(user.getEmail(), otp,user.getName());
+		user.setOtp(otp);
+		user.setOtpExpirytime(LocalDateTime.now().plusMinutes(5));
+		userDao.saveUser(user);
+		Map<String, String> map = new HashMap<String, String>();
+		map.put("email", emailDto.getEmail());
+		return new ResponseDto("Otp Resent success vlid only for % minutes", map);
+	}
+
+	@Override
+	public ResponseDto forgotPassword(PasswordDto passwordDto) throws TimeoutException {
+		User user = userDao.findByEmail(passwordDto.getEmail());
+		if(LocalDateTime.now().isBefore(user.getOtpExpirytime())) {
+			if(passwordDto.getOtp() == user.getOtp()) {
+				user.setPassword(encoder.encode(passwordDto.getPassword()));
+				user.setOtp(0);
+				user.setOtpExpirytime(null);
+				userDao.saveUser(user);
+				return new ResponseDto("Password Updated success",user);
+			}else {
+				throw new InputMismatchException("Otp miss match, Try Again");
+				
+			}
+		}else {
+			throw new TimeoutException("Otp Expired, Resend Otp and Try Again");
+		}
+	}
+
+	@Override
+	public ResponseDto forgotPassword(EmailDto emailDto) throws TimeoutException{
+		User user = userDao.findByEmail(emailDto.getEmail());
+		int otp = new Random().nextInt(100000,1000000);
+		emailSender.sendForgotOtp(user.getEmail(),otp,user.getName());
+		user.setOtp(otp);
+		user.setOtpExpirytime(LocalDateTime.now().plusMinutes(5));
+		Map<String,String> map = new HashMap<String,String>();
+		map.put("email", emailDto.getEmail());
+		return new ResponseDto("Otp sent success valid for 5 minutes", map);
+	}
+
+	@Override
+	public ResponseDto login(LoginDto loginDto) {
+		return new ResponseDto("Login success", loginDto);
 	}
 
 	
